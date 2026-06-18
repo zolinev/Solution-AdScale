@@ -1,0 +1,85 @@
+openapi: 3.0.0
+info:
+  title: AdScale Bidding Service
+  version: 1.0.0
+  description: API для проведения аукционов по OpenRTB в AdScale.
+paths:
+  /v1/bidding_service:
+    post:
+      summary: Запрос на участие в аукционе
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, imp, device]
+              properties:
+                id:
+                  type: string
+                  description: Уникальный идентификатор запроса
+                  example: "bid-req-777"
+                device:
+                  type: object
+                  required: [os, geo]
+                  properties:
+                    os:
+                      description: ОС устройства пользователя
+                      type: string
+                      example: "Android"
+                    geo:
+                      description: Регион пользователя
+                      type: string
+                      example: "US"
+                imp:
+                  type: array
+                  description: Список доступных рекламных мест на странице
+                  items:
+                    type: object
+                    required: [id, w, h]
+                    properties:
+                      id:
+                        type: string
+                        description: Уникальный ID слота в рамках этого запроса
+                        example: "slot-1"
+                      w:
+                        type: integer
+                        description: Ширина баннера в пикселях.
+                        example: 300
+                      h:
+                        type: integer
+                        description: Высота баннера в пикселях.
+                        example: 250
+      responses:
+        '200':
+          description: Ставка успешно подобрана
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, imp_id, bid_id, price, adm]
+                properties:
+                  id:
+                    type: string
+                    description: Идентификатор самого запроса (должен совпадать с id из запроса)
+                    example: "bid-req-777"
+                  imp_id:
+                    type: string
+                    description: ID рекламного места из запроса, для которого сделана эта ставка
+                    example: "slot-1"
+                  bid_id:
+                    type: string
+                    description: Уникальный ID ставки в AdScale
+                    example: "bid-777-xyz"
+                  price:
+                    type: number
+                    description: Размер ставки (CPM)
+                    example: 1.75
+                  adm:
+                    type: string
+                    description: Адрес для получения кода баннера
+                    example: "https://bidding.adscale.net?bid_id=bid-777-xyz"
+        '204':
+          description: Нет подходящих объявлений
+        '400':
+          description: Ошибка валидации запроса
