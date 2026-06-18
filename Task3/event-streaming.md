@@ -21,8 +21,8 @@ json{
     { "name": "bid_id", "type": "string", "doc": "ID аукциона" },  
     { "name": "campaign_id", "type": "int", "doc": "ID рекламной кампании" },  
     { "name": "advertiser_id", "type": "int", "doc": "ID рекламодателя" },  
-    { "name": "price", "type": "double", "doc": "цена" },  
-    { "name": "geo", "type": "string", "doc": "регион пользователя" },  
+    { "name": "price", "type": "double", "doc": "Цена" },  
+    { "name": "geo", "type": "string", "doc": "Регион пользователя" },  
     { "name": "os", "type": "string", "doc": "Операционная система устройства" },  
     { "name": "timestamp", "type": "long", "doc": "Время фиксации показа" }  
   ]   
