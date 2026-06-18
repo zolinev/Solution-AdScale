@@ -1,0 +1,120 @@
+@startuml
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_LEFT_RIGHT()
+
+title C4 Container Diagram — AdScale (To-Be)
+
+' ====================== Акторы ======================
+Person(advertiser, "Рекламодатель", "Управляет кампаниями, бюджетами и ставками через личный кабинет")
+Person_Ext(endUser, "Пользователь сайта/приложения", "Просматривает рекламу, кликает по баннерам")
+
+System_Ext(dspPartner1, "DSP-партнёр_1", "Отправляет bid requests, получает bid responses по OpenRTB")
+System_Ext(dspPartnerN, "DSP-партнёр_N", "Отправляет bid requests, получает bid responses по OpenRTB")
+System_Ext(paymentGateway, "Платёжный шлюз", "Обработка пополнения рекламных бюджетов")
+
+
+together{
+   Container(B2BGateway, "B2B Gateway API",  "Принимает HTTP-запросы от DSP-площадок, проверяет авторизацию, осуществляет rate_limiter ")
+   Container(B2CGateway, "B2C Gateway API",  "Принимает HTTP-запросы от браузеров клиентов при показе/клике по баннеру, проверяет авторизацию, осуществляет rate_limiter ")
+   Container(DashboardGateway, "Dashboard Gateway API",  "Принимает HTTP-запросы от личного кабинета рекламодателя, проверяет авторизацию, осуществляет rate_limiter ")
+ 'B2BGateway -[hidden]- B2CGateway
+ 'B2CGateway -[hidden]- DashboardGateway
+}
+
+together{
+    Container(biddingService, "Bidding Service", "C++", "Взвешивание ставок, бизнес-правила, расчёт победителя аукциона ")
+    Container(adCabinet, "Advertiser Dashboard", "Node.js + JavaScript", "Web UI: управление кампаниями, отчётность")
+    Container(deliveryService, "Delivery Service", "Node.js", "Формирует HTML/JS-разметку баннера и HTTP response")
+}
+
+together{
+    Container(statsService, "Statistics Service", "Python", "Запись кликов и показов")
+    Container(financialService, "Financial Service", "Go", "Списание средств, выставление счетов, управление балансами")
+    Container(analyticsService, "Analytics Service", "Python", "Аналитические SQL-запросы")
+    Container(paymentService, "Payment Service", , "Бизнес логика проведения платежей пополнения баланса")
+    Container(campaignService, "Campaign Service", , "Работа с кампаниями создание/редактирование/просмотр/удаление")
+}
+
+Container(cacheActuatorService, "Cache Actuator Service", , "Актуализаця кеша")
+
+Boundary(redis, "Redis"){
+  Container(winnerCache, "Кеш победителей аукционов")
+  Container(campaignCache, "Кеш кампаний")
+  Container(balanceCache, "Кеш балансов рекламодателей")
+}
+
+Boundary(kafka, "Kafka"){
+  Container(clickTopick, "Топик кликов и показов")
+  Container(reqReportTopic, "Топик заказов отчетов")
+  Container(respReportTopic, "Топик уведомления о готовности отчетов")
+  Container(campaignTopic, "Топик кампаний")
+  Container(paymentTopic, "Топик платежей")
+  Container(balanceTopic, "Топик балансов")
+}
+' ====================== Базы данных ======================
+
+Boundary(clichHouseGroup, "ClickHouse"){
+    ContainerDb(clickHouse, "БД События", "ClickHouse", "Только события")
+}
+
+Boundary(Postgre, "Postgre") {
+    ContainerDb(campaignPostgres, "БД Кампании", "PostgreSQL", "Только кампании")
+    ContainerDb(financePostgres, "БД Финансы", "PostgreSQL", "Только финансы")
+}
+
+
+' ====================== Связи ======================
+
+' Внешние связи
+Rel(dspPartner1, B2BGateway, "Bid requests / responses", "HTTPS / OpenRTB")
+Rel(dspPartnerN, B2BGateway, "Bid requests / responses", "HTTPS / OpenRTB")
+Rel(endUser, B2CGateway, "Просмотр рекламы и клики", "HTTPS")
+Rel(advertiser, DashboardGateway, "Управляет кампаниями и бюджетами", "HTTPS")
+Rel(paymentService, paymentGateway, "Пополнение бюджета", "HTTPS / REST")
+
+'Внутренние связи
+Rel(B2BGateway, biddingService, "gRPC")
+Rel(B2CGateway, deliveryService, "gRPC")
+Rel(DashboardGateway, adCabinet, HTTPS)
+Rel(adCabinet, paymentService, "Пополнение бюджета", "HTTPS / REST")
+Rel(adCabinet, campaignService, "Работа с кампаниями")
+
+
+'Связи с кешем
+Rel(biddingService, winnerCache, "пишет победителей аукционов")
+Rel(biddingService, campaignCache, "берет данные кампаний")
+Rel(deliveryService, winnerCache, "берет победителей аукционов для наполнения баннера клиенту")
+Rel_U(cacheActuatorService, campaignCache, "сохраняет данные кампаний")
+Rel_U(cacheActuatorService, balanceCache, "сохраняет актуальные балансы")
+
+
+'Связи с Кафкой
+Rel(deliveryService, clickTopick, "пишет факты кликов/показов")
+Rel(adCabinet, reqReportTopic, "пишет запросы отчетов")
+Rel(adCabinet, respReportTopic, "читает о готовности отчетов")
+Rel_U(statsService, clickTopick, "читает события для сохранения в БД Событий")
+Rel(statsService, paymentTopic, "читает факты успешных платежей для использования в отчетах")
+Rel_U(financialService, clickTopick, "читает события, группирует по рекламодателям, формирует списания в БД Финансов")
+Rel_U(analyticsService, reqReportTopic, "читает запросы отчетов")
+Rel_U(analyticsService, respReportTopic, "пишет факты подготовки отчетов")
+Rel_U(campaignService, campaignTopic, "пишет данные по изменению кампаний")
+Rel_U(paymentService, paymentTopic, "пишет факты успешных платежей")
+Rel_U(financialService, paymentTopic, "читает факты успешных платежей")
+Rel_U(financialService, balanceTopic, "пишет факты изменения баланса")
+Rel_U(cacheActuatorService, campaignTopic, "читает данные о кампаниях")
+Rel_U(cacheActuatorService, balanceTopic, "читает данные о балансах")
+
+'Связи с базой
+Rel(statsService, clickHouse, "записывает все события кликов/показов и успешных платежей")
+Rel(financialService, financePostgres, "вставка батчами группированных по рекламодателю списаний и начислений")
+Rel(analyticsService, clickHouse, "берет данные для подготовки отчетов")
+Rel(campaignService, campaignPostgres, "Работа с данными кампаний")
+'Rel(adCabinet, campaignPostgres, "читает данные кампаний")
+
+'Postgre -[hidden]- clickHouse
+'paymentService -[hidden]- analyticsService
+
+@enduml
